@@ -38,8 +38,7 @@ class StandaloneContext(options: String) extends ScalahostSemanticContext(mkGlob
       if (reporter.hasErrors) throw new StandaloneException("typecheck has failed:" + EOL + (reporter.infos map (_.msg) mkString EOL))
       typedpkg.require[PackageDef]
     }
-    val _ = toMtree.computeConverters // TODO: necessary because of macro expansion order
-    toMtree(gtypedtree, classOf[mapi.Source])
+    toMtree(gtypedtree.asInstanceOf[g.Tree]).asInstanceOf[mapi.Source]
   }
   val reporter = new StoreReporter()
 }

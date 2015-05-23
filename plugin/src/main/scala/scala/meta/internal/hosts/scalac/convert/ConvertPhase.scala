@@ -34,7 +34,7 @@ trait ConvertPhase {
     override def newPhase(prev: Phase): StdPhase = new StdPhase(prev) {
       override def apply(unit: CompilationUnit) {
         val parsedTree = unit.source.content.parse[mapi.Source].asInstanceOf[m.Source]
-        val convertedTree = c.toMtree(unit.body, classOf[mapi.Source]).asInstanceOf[m.Source]
+        val convertedTree = c.toMtree(unit.body).asInstanceOf[m.Source]
         val mergedTree = MergeTrees(parsedTree, convertedTree)
 
         // TODO: once the converter is rewritten to produce syntax-aware trees,

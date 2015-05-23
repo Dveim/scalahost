@@ -257,7 +257,7 @@ trait ToMmember extends GlobalToolkit with MetaToolkit {
           lsym match {
             case l.Macro(gsym) =>
               gsym.macroBody match {
-                case MacroBody.Meta(body) => { val _ = toMtree.computeConverters; toMtree(body, classOf[m.Term]) }
+                case MacroBody.Meta(body) => toMtree(body).asInstanceOf[m.Term]
                 case _ => munknownTerm
               }
             case l.SecondaryCtor(gsym) =>

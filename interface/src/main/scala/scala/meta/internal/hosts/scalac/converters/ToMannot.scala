@@ -44,7 +44,7 @@ trait ToMannot extends GlobalToolkit with MetaToolkit {
               m.Term.Arg.Named(mname, loop(garg))
             })
           } else {
-            def loop(garg: g.Tree): m.Term = { val _ = toMtree.computeConverters; toMtree(garg, classOf[m.Term]) }
+            def loop(garg: g.Tree): m.Term = toMtree(garg).asInstanceOf[m.Term]
             if (gannot.atp.typeSymbol == g.definitions.ThrowsClass) Nil
             else gargs.map(loop)
           }

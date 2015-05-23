@@ -65,9 +65,9 @@ trait Expansion extends scala.reflect.internal.show.Printers {
               if (sys.props("macro.debug") != null) println(rc.macroApplication)
               val q"$_[..$gtargs](...$gargss)" = rc.macroApplication
               val mtargs = gtargs.map(gtarg => mc.toMtype(gtarg.tpe))
-              val margss = mmap(gargss)(mc.toMtree(_, classOf[m.Term]))
+              val margss = mmap(gargss)(mc.toMtree)
               if (currentRun.compiles(rc.macroApplication.symbol)) {
-                val mMacroBody = mc.toMtree(implDdef, classOf[m.Defn.Def])
+                val mMacroBody = mc.toMtree(implDdef).asInstanceOf[m.Defn.Def]
                 val mMacroEnv = scala.collection.mutable.Map[Term.Name, Any]()
                 val mMacroArgss = List(mtargs, List(mc)) // TODO: accommodate margss
                 val mMacroApplication = mMacroArgss.foldLeft(mMacroBody.name: Term)((curr, args) => {
