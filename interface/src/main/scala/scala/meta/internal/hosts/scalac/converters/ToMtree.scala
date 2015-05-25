@@ -37,7 +37,10 @@ import scala.meta.dialects.Scala211
 trait ToMtree extends GlobalToolkit with MetaToolkit {
   self: Api =>
 
-  def toMtree(in: g.Tree): m.Tree = {
-    in.pos.source.content.parse[Source].asInstanceOf[m.Tree]
+  def toMtree(gtree: g.Tree): m.Tree = {
+    def correlate(gtree: g.Tree, mtree: m.Tree): m.Tree = (gtree, mtree) match {
+      case _ => ???
+    }
+    correlate(gtree, gtree.pos.source.content.parse[Source].asInstanceOf[m.Tree])
   }
 }
