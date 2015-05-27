@@ -31,73 +31,43 @@ trait ToMtree extends GlobalToolkit with MetaToolkit {
   def toMtree(gtree: g.Tree): m.Tree = {
     import g.{Quasiquote => _, _}
 
-    def inside(pat: Any, mtree: m.Tree)(block: => Unit): Unit = {
-      val name = pat.getClass.getSimpleName
-      val hashCode = pat.hashCode()
-
-      println(s"in [$name] [$hashCode]")
-//      println(s"mTree is [$mtree]")
-      block
-      println(s"out [$name] [$hashCode]")
-    }
-
     def correlate(gtree: g.Tree, mtree: m.Tree): Unit /*m.Tree*/ = (gtree, mtree) match {
-      case (pat @ Block(stats: List[Tree], expr: Tree), _mtree) =>
-        inside(pat, _mtree) {
-          stats.foreach(correlate(_, _mtree))
-        }
+      case (PackageDef(_, stats: List[Tree]), mtree: m.Source) =>
+        (stats zip mtree.stats).foreach(correlate _ tupled _)
 
-      case (pat @ ClassDef(mods: Modifiers, name: TypeName, tparams: List[TypeDef], impl: Template), _mtree) =>
-        inside(pat, _mtree) {
-          impl.body.foreach(t => correlate(t.asInstanceOf[g.Tree], _mtree))
-        }
+      case (_: Import, _: m.Import) =>
 
-      case (pat @ DefDef(mods: Modifiers, name: TermName, tparams: List[TypeDef], vparams: List[List[ValDef]], tpt: Tree, rhs: Tree), _mtree) =>
-        inside(pat, _mtree) {
+      case (_: Import, _: m.Pkg) =>
 
-        }
+      case (ModuleDef(mods: Modifiers, name: TermName, impl: Template), mtree) => mtree match {
+        case mtree: m.Defn.Object if mtree.templ.stats.nonEmpty =>
+          (impl.body zip mtree.templ.stats.get.map(_.asInstanceOf[m.Tree])).foreach(correlate _ tupled _)
+      }
 
-      case (pat @ Import(expr, selectors), _mtree) =>
-        inside(pat, _mtree) {
+      case (ClassDef(mods: Modifiers, name: TypeName, tparams: List[TypeDef], impl: Template), mtree) => mtree match {
+        case mtree: m.Defn.Class if mtree.templ.stats.nonEmpty =>
+          (impl.body zip mtree.templ.stats.get.map(_.asInstanceOf[m.Tree])).foreach(correlate _ tupled _)
+      }
 
-        }
+      case (DefDef(mods: Modifiers, name: TermName, tparams: List[TypeDef], vparams: List[List[ValDef]], tpt: Tree, rhs: Tree), mtree) => mtree match {
+        case mtree: m.Defn.Macro =>
 
-      case (pat @ Literal(value), _mtree) =>
-        inside(pat, _mtree) {
+        case mtree: m.Defn.Def =>
 
-        }
+        case mtree: m.Defn.Val =>
+      }
 
-      case (pat @ ModuleDef(mods: Modifiers, name: TermName, impl: Template), _mtree) =>
-        inside(pat, _mtree) {
+      case (ValDef(mods: Modifiers, name: TermName, tpt: Tree, rhs: Tree), mtree) => mtree match {
+        case mtree: m.Defn.Val =>
 
-        }
+        case mtree: m.Defn.Object =>
+      }
 
-      case (pat @ PackageDef(pid: RefTree, stats: List[Tree]), _mtree) =>
-        inside(pat, _mtree) {
-          stats.foreach(correlate(_, _mtree))
-        }
+      case (gtree, mtree) =>
+        println(gtree.getClass)
+        println(mtree.getClass)
+        println
 
-      case (pat @ Select(qualifier: Tree, name: Name), _mtree) =>
-        inside(pat, _mtree) {
-
-        }
-
-      case (pat @ ValDef(mods: Modifiers, name: TermName, tpt: Tree, rhs: Tree), _mtree) =>
-        inside(pat, _mtree) {
-
-        }
-
-      case (pat @ TypeTree(), _mtree) =>
-        inside(pat, _mtree) {
-
-        }
-
-      case (EmptyTree, _mtree) =>
-        println("EmptyTree")
-
-//      case _ =>
-//        ???
-    }
 
     //    val out = correlate(gtree, gtree.pos.source.content.parse[Source].asInstanceOf[m.Tree])
     //
@@ -106,6 +76,7 @@ trait ToMtree extends GlobalToolkit with MetaToolkit {
     //    println(s"\nout.show[Semantics] = [${out.show[Semantics]}]")
     //
     //    out
+        
     correlate(gtree, gtree.pos.source.content.parse[Source].asInstanceOf[m.Tree])
     gtree.pos.source.content.parse[Source].asInstanceOf[m.Tree]
   }
