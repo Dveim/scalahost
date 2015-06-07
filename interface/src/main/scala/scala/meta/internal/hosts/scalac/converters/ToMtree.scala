@@ -3,6 +3,7 @@ package internal.hosts.scalac
 package converters
 
 // todo clean imports
+import scala.language.postfixOps
 import org.scalameta.meta.{Toolkit => MetaToolkit}
 import org.scalameta.reflection._
 import org.scalameta.invariants._
@@ -57,24 +58,14 @@ trait ToMtree extends GlobalToolkit with MetaToolkit {
         yield t
     }
 
-    def processLhsPat(pat: Pat): Unit = {
-      pat match {
-        case p: m.Pat.Var =>
-          println("var")
-
-        case p: m.Pat.Tuple =>
-          println("tuple")
-          println(p.elements)
-
-        case p: m.Pat.Extract =>
-          println(s"p.args = [${p.args}]\np.ref = [${p.ref}]\np.targs = [${p.targs}]\n")
-          val a = p.args.head
-          println(a.tokens)
+    def processLhsPat(gtree: g.Tree, pat: Pat): Unit = (gtree, pat) match {
+        case (gcasedef: g.CaseDef, mextract: m.Pat.Extract) =>
+          println(s"p.args = [${mextract.args}]\np.ref = [${mextract.ref}]\np.targs = [${mextract.targs}]\n")
+          gcasedef.pat // todo and what should I do? change p.ref ??? (e.g. specify List to scala.List)
 
         case p =>
           println(p.getClass)
       }
-    }
 
     def correlate(gtree: g.Tree, mtree: m.Tree): Unit /*m.Tree*/ = (gtree, mtree) match {
       case (PackageDef(_, stats: List[Tree]), mtree: m.Source) =>
@@ -84,21 +75,16 @@ trait ToMtree extends GlobalToolkit with MetaToolkit {
 
       case (_: Import, _: m.Pkg) =>
 
-      case (ModuleDef(mods: Modifiers, name: TermName, impl: Template), mtree) => mtree match {
+      case (mdef @ ModuleDef(mods: Modifiers, name: TermName, impl: Template), mtree) => mtree match {
         case mtree: m.Defn.Object if mtree.templ.stats.nonEmpty =>
           (impl.body zip mtree.templ.stats.get.map(_.asInstanceOf[m.Tree])).foreach(correlate _ tupled _)
+
+        case _ =>
       }
 
-      case (ClassDef(mods: Modifiers, name: TypeName, tparams: List[TypeDef], impl: Template), mtree) =>
-        println(mtree.show[Raw] + "\n")
-        removeFakeMethods(impl.body).foreach(showRaw(_))
-        println(removeFakeMethods(impl.body).length)
-        impl.body.foreach(x => println(showRaw(x) + "\n"))
-
-        mtree match {
-          case mtree: m.Defn.Class if mtree.templ.stats.nonEmpty =>
-            println(mtree.templ.stats.get.map(_.asInstanceOf[m.Tree]).head.show[Raw])
-//            (impl.body zip mtree.templ.stats.get.map(_.asInstanceOf[m.Tree])).foreach(correlate _ tupled _)
+      case (ClassDef(mods: Modifiers, name: TypeName, tparams: List[TypeDef], impl: Template), mtree) => mtree match {
+        case mtree: m.Defn.Class if mtree.templ.stats.nonEmpty =>
+          (removeFakeMethods(impl.body) zip mtree.templ.stats.get.map(_.asInstanceOf[m.Tree])).foreach(correlate _ tupled) // todo extract in method
       }
 
       case (DefDef(mods: Modifiers, name: TermName, tparams: List[TypeDef], vparams: List[List[ValDef]], tpt: Tree, rhs: Tree), mtree) => mtree match {
@@ -111,31 +97,31 @@ trait ToMtree extends GlobalToolkit with MetaToolkit {
 
       case (valdef @ ValDef(mods: Modifiers, name: TermName, tpt: Tree, rhs: Tree), mtree) => mtree match {
         case mtree: m.Defn.Val =>
-          println(s"DefDef mtree.decltpe = [${mtree.decltpe}]\nmtree.mods = [${mtree.mods}]\nmtree.pats = [${mtree.pats}]\nmtree.rhs = [${mtree.rhs}]")
-          println(s"mtree sematics = [${mtree.show[Semantics]}}]")
-          println(s"showRaw(ValDef) = [${showRaw(valdef)}}]")
+          println(s"mtree.show[Raw] = [${mtree.show[Raw]}}]\n")
+          println(s"mtree semantics = [${mtree.show[Semantics]}}]\n")
+          println(s"ValDef:\nmtree.decltpe = [${mtree.decltpe}]\nmtree.mods = [${mtree.mods}]\nmtree.pats = [${mtree.pats}]\nmtree.rhs = [${mtree.rhs.show[Raw]}]\n")
+          println(s"showRaw(ValDef) = [${showRaw(valdef)}}]\n")
 
+//          mtree.copy(decltpe = Some(valdef.tpe)) todo scala.reflect type to scala.meta type
           correlate(rhs, mtree.rhs)
-          mtree.pats.foreach(processLhsPat)
+
+          valdef.rhs match {
+            case gmatch: g.Match =>
+              mtree.pats.foreach(processLhsPat(gmatch, _))
+          }
 
         case mtree: m.Defn.Object =>
       }
 
       case (gtree, mtree) =>
+        println("MISSED")
         println(gtree.getClass)
         println(mtree.getClass)
         println
     }
 
-    //    val out = correlate(gtree, gtree.pos.source.content.parse[Source].asInstanceOf[m.Tree])
-    //
-    //    println(s"\nout.show[Code] = [${out.show[Code]}]")
-    //    println(s"\nout.show[Raw] = [${out.show[Raw]}]")
-    //    println(s"\nout.show[Semantics] = [${out.show[Semantics]}]")
-    //
-    //    out
-
     correlate(gtree, gtree.pos.source.content.parse[Source].asInstanceOf[m.Tree])
+
     gtree.pos.source.content.parse[Source].asInstanceOf[m.Tree]
   }
 }

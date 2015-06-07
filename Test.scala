@@ -1,3 +1,3 @@
 class A {
-  val List(a: Int, b: Int) = List(1, 2)
+  val List(a, b), List(d, e) = List(1, 2)
 }
