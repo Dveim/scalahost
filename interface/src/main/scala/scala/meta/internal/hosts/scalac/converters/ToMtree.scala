@@ -2,6 +2,7 @@ package scala.meta
 package internal.hosts.scalac
 package converters
 
+// todo clean imports
 import org.scalameta.meta.{Toolkit => MetaToolkit}
 import org.scalameta.reflection._
 import org.scalameta.invariants._
@@ -31,6 +32,50 @@ trait ToMtree extends GlobalToolkit with MetaToolkit {
   def toMtree(gtree: g.Tree): m.Tree = {
     import g.{Quasiquote => _, _}
 
+    // removes methods like constructor, getters/setters
+    // note that ordering of methods does not change => useful for further matching with scala.meta trees
+    def removeFakeMethods(gtrees: List[g.Tree]): List[g.Tree] = {
+      def isCtor(gtree: g.Tree): Boolean = gtree match {
+        case gtree: DefDef => gtree.name == g.nme.CONSTRUCTOR
+
+        case _ => false
+      }
+
+      import scala.reflect.internal.ModifierFlags.{PRIVATE, LOCAL}
+      val gsetters = gtrees.sliding(2)
+                           .withFilter {
+                              case List(vd: ValDef, dd: DefDef) =>
+                                vd.mods.hasFlag(PRIVATE) && vd.mods.hasFlag(LOCAL) && dd.name.toString + " " == vd.name.toString
+
+                              case _ => false
+                            }
+                           .flatten
+                           .toSet
+
+      for (t <- gtrees
+           if !isCtor(t) && !gsetters.contains(t))
+        yield t
+    }
+
+    def processLhsPat(pat: Pat): Unit = {
+      pat match {
+        case p: m.Pat.Var =>
+          println("var")
+
+        case p: m.Pat.Tuple =>
+          println("tuple")
+          println(p.elements)
+
+        case p: m.Pat.Extract =>
+          println(s"p.args = [${p.args}]\np.ref = [${p.ref}]\np.targs = [${p.targs}]\n")
+          val a = p.args.head
+          println(a.tokens)
+
+        case p =>
+          println(p.getClass)
+      }
+    }
+
     def correlate(gtree: g.Tree, mtree: m.Tree): Unit /*m.Tree*/ = (gtree, mtree) match {
       case (PackageDef(_, stats: List[Tree]), mtree: m.Source) =>
         (stats zip mtree.stats).foreach(correlate _ tupled _)
@@ -44,9 +89,16 @@ trait ToMtree extends GlobalToolkit with MetaToolkit {
           (impl.body zip mtree.templ.stats.get.map(_.asInstanceOf[m.Tree])).foreach(correlate _ tupled _)
       }
 
-      case (ClassDef(mods: Modifiers, name: TypeName, tparams: List[TypeDef], impl: Template), mtree) => mtree match {
-        case mtree: m.Defn.Class if mtree.templ.stats.nonEmpty =>
-          (impl.body zip mtree.templ.stats.get.map(_.asInstanceOf[m.Tree])).foreach(correlate _ tupled _)
+      case (ClassDef(mods: Modifiers, name: TypeName, tparams: List[TypeDef], impl: Template), mtree) =>
+        println(mtree.show[Raw] + "\n")
+        removeFakeMethods(impl.body).foreach(showRaw(_))
+        println(removeFakeMethods(impl.body).length)
+        impl.body.foreach(x => println(showRaw(x) + "\n"))
+
+        mtree match {
+          case mtree: m.Defn.Class if mtree.templ.stats.nonEmpty =>
+            println(mtree.templ.stats.get.map(_.asInstanceOf[m.Tree]).head.show[Raw])
+//            (impl.body zip mtree.templ.stats.get.map(_.asInstanceOf[m.Tree])).foreach(correlate _ tupled _)
       }
 
       case (DefDef(mods: Modifiers, name: TermName, tparams: List[TypeDef], vparams: List[List[ValDef]], tpt: Tree, rhs: Tree), mtree) => mtree match {
@@ -55,28 +107,16 @@ trait ToMtree extends GlobalToolkit with MetaToolkit {
         case mtree: m.Defn.Def =>
 
         case mtree: m.Defn.Val =>
-          println(s"mtree.decltpe = [${mtree.decltpe}]\nmtree.mods = [${mtree.mods}]\nmtree.pats = [${mtree.pats}]\nmtree.rhs = [${mtree.rhs}]")
-          val pats = mtree.pats
-          pats.head match {
-            case p: m.Pat.Var =>
-              println("var")
-
-            case p: m.Pat.Tuple =>
-              println("tuple")
-              println(p.elements)
-
-            case p: m.Pat.Extract =>
-              println(s"p.args = [${p.args}]\np.ref = [${p.ref}]\np.targs = [${p.targs}]\n")
-              val a = p.args.head
-              println(a.tokens)
-
-            case p =>
-              println(p.getClass)
-          }
       }
 
-      case (ValDef(mods: Modifiers, name: TermName, tpt: Tree, rhs: Tree), mtree) => mtree match {
+      case (valdef @ ValDef(mods: Modifiers, name: TermName, tpt: Tree, rhs: Tree), mtree) => mtree match {
         case mtree: m.Defn.Val =>
+          println(s"DefDef mtree.decltpe = [${mtree.decltpe}]\nmtree.mods = [${mtree.mods}]\nmtree.pats = [${mtree.pats}]\nmtree.rhs = [${mtree.rhs}]")
+          println(s"mtree sematics = [${mtree.show[Semantics]}}]")
+          println(s"showRaw(ValDef) = [${showRaw(valdef)}}]")
+
+          correlate(rhs, mtree.rhs)
+          mtree.pats.foreach(processLhsPat)
 
         case mtree: m.Defn.Object =>
       }
@@ -86,7 +126,7 @@ trait ToMtree extends GlobalToolkit with MetaToolkit {
         println(mtree.getClass)
         println
     }
-    
+
     //    val out = correlate(gtree, gtree.pos.source.content.parse[Source].asInstanceOf[m.Tree])
     //
     //    println(s"\nout.show[Code] = [${out.show[Code]}]")
