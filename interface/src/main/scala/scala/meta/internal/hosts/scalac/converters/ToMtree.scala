@@ -17,7 +17,7 @@ import scala.reflect.internal.Flags._
 import scala.{meta => mapi}
 import scala.meta.internal.{ast => m}
 import scala.reflect.runtime.universe.{Type => Pt}
-import scala.meta.internal.{hygiene => h}
+import scala.meta.internal.{semantic => s}
 import scala.meta.internal.parsers.Helpers.{XtensionTermOps => _, _}
 import scala.meta.dialects.Scala211
 
@@ -44,14 +44,14 @@ trait ToMtree extends GlobalToolkit with MetaToolkit {
 
       import scala.reflect.internal.ModifierFlags.{PRIVATE, LOCAL}
       val gsetters = gtrees.sliding(2)
-                           .withFilter {
-                              case List(vd: ValDef, dd: DefDef) =>
-                                vd.mods.hasFlag(PRIVATE) && vd.mods.hasFlag(LOCAL) && dd.name.toString + " " == vd.name.toString
+        .withFilter {
+        case List(vd: ValDef, dd: DefDef) =>
+          vd.mods.hasFlag(PRIVATE) && vd.mods.hasFlag(LOCAL) && dd.name.toString + " " == vd.name.toString
 
-                              case _ => false
-                            }
-                           .flatten
-                           .toSet
+        case _ => false
+      }
+        .flatten
+        .toSet
 
       for (t <- gtrees
            if !isCtor(t) && !gsetters.contains(t))
@@ -59,13 +59,13 @@ trait ToMtree extends GlobalToolkit with MetaToolkit {
     }
 
     def processLhsPat(gtree: g.Tree, pat: Pat): Unit = (gtree, pat) match {
-        case (gcasedef: g.CaseDef, mextract: m.Pat.Extract) =>
-          println(s"p.args = [${mextract.args}]\np.ref = [${mextract.ref}]\np.targs = [${mextract.targs}]\n")
-          gcasedef.pat // todo and what should I do? change p.ref ??? (e.g. specify List to scala.List)
+      case (gcasedef: g.CaseDef, mextract: m.Pat.Extract) =>
+        println(s"p.args = [${mextract.args}]\np.ref = [${mextract.ref}]\np.targs = [${mextract.targs}]\n")
+        gcasedef.pat // todo and what should I do? change p.ref ??? (e.g. specify List to scala.List)
 
-        case p =>
-          println(p.getClass)
-      }
+      case p =>
+        println(p.getClass)
+    }
 
     def correlate(gtree: g.Tree, mtree: m.Tree): Unit /*m.Tree*/ = (gtree, mtree) match {
       case (PackageDef(_, stats: List[Tree]), mtree: m.Source) =>
@@ -102,7 +102,7 @@ trait ToMtree extends GlobalToolkit with MetaToolkit {
           println(s"ValDef:\nmtree.decltpe = [${mtree.decltpe}]\nmtree.mods = [${mtree.mods}]\nmtree.pats = [${mtree.pats}]\nmtree.rhs = [${mtree.rhs.show[Raw]}]\n")
           println(s"showRaw(ValDef) = [${showRaw(valdef)}}]\n")
 
-//          mtree.copy(decltpe = Some(valdef.tpe)) todo scala.reflect type to scala.meta type
+          //          mtree.copy(decltpe = Some(valdef.tpe)) todo scala.reflect type to scala.meta type
           correlate(rhs, mtree.rhs)
 
           valdef.rhs match {
